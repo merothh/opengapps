@@ -1,6 +1,16 @@
 EOF
 }
 
+mount_product() {
+  if [ "$(getprop ro.boot.dynamic_partitions)" = "true" ]; then
+      test -e /dev/block/mapper/product || local slot=$(getprop ro.boot.slot_suffix)
+      blockdev --setrw /dev/block/mapper/product$slot
+      mount -o rw -t auto /dev/block/mapper/product$slot /product
+  else
+      mount -o rw -t auto /product
+  fi
+}
+
 # Backup/Restore using /sdcard if the installed GApps size plus a buffer for other addon.d backups (204800=200MB) is larger than /tmp
 installed_gapps_size_kb=$(grep "^installed_gapps_size_kb" $TMP/gapps.prop | cut -d '=' -f 2)
 if [ ! "$installed_gapps_size_kb" ]; then
@@ -40,7 +50,7 @@ case "$1" in
     done
   ;;
   pre-backup)
-    # Stub
+    mount_product
   ;;
   post-backup)
     # Stub
@@ -78,6 +88,10 @@ case "$1" in
       chmod 644 "$SYS/$i"
       chmod 755 "$(dirname "$SYS/$i")"
     done
+
+    # Unmount product partition as we're done with it
+    umount /product
+
     if [ "$rom_build_sdk" -ge "26" ]; then # Android 8.0+ uses 0600 for its permission on build.prop
       chmod 600 "$SYS/build.prop"
     fi
